@@ -242,6 +242,19 @@ class TestMailCcBccRecipients(MailCase):
         )
         self._assert_mails(message, partners_to, self.de, self.es)
 
+    def test_followers_are_not_listed_next_to_chosen_recipients(self):
+        """Followers notified on top of the chosen recipients are not in To"""
+        self.record.message_subscribe(partner_ids=self.us2.ids)
+        partners_to = self.us1 + self.fr
+        message = self._send("followers-and-to", partners_to, self.de, self.es)
+
+        audience = partners_to + self.us2 + self.de + self.es
+        self._assert_each_recipient_in_one_mail(message, audience)
+        self._assert_one_email_per_recipient(audience)
+        self._assert_same_to_cc_headers(partners_to, self.de)
+        self._assert_bcc_header_on_bcc_emails_only(self.es + self.us2)
+        self._assert_bcc_never_transmitted()
+
     def test_to_header_survives_sent_mails_being_unlinked(self):
         """Sent mails are unlinked: the last one must still show every To
 

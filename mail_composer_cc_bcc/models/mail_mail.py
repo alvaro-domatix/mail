@@ -90,11 +90,21 @@ class MailMail(models.Model):
             )
             or self.recipient_ids
         )
-        partner_to = all_recipients - partners_cc_bcc
+        # To lists the recipients chosen in the composer. Followers notified
+        # on top of them get their own email without being listed, like a
+        # blind copy, so that the customer does not see who follows the
+        # document internally. Without any chosen recipient, the followers
+        # are the whole audience and are listed.
+        partner_to = (self.partner_ids or all_recipients) - partners_cc_bcc
         email_to = format_emails(partner_to)
         email_to_raw = format_emails_raw(partner_to)
         email_cc = format_emails_str(self.recipient_cc_ids)
         email_bcc = [r.email for r in self.recipient_bcc_ids if r.email]
+        listed = {
+            tools.mail.email_normalize(partner.email)
+            for partner in partner_to + self.recipient_cc_ids
+            if partner.email
+        }
 
         # Update all emails with the same To, Cc headers (to be shown by the
         # email client as users expect)
@@ -137,6 +147,10 @@ class MailMail(models.Model):
                 # only add it when explicitly enabled (OCA/mail#233).
                 if self._expose_bcc_marker():
                     m["headers"]["X-Odoo-Bcc"] = m["email_to"][0]
+            # A follower notified on top of the chosen recipients is in
+            # neither To nor Cc: like a Bcc, only the envelope carries it.
+            elif tools.mail.email_normalize(rcpt_to) not in listed:
+                m["headers"]["Bcc"] = m["email_to"][0]
 
             m.update(
                 {
